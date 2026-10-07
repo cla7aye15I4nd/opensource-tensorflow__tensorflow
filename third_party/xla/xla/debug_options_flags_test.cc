@@ -24,6 +24,8 @@ limitations under the License.
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
 #include "google/protobuf/descriptor.h"
 #include "xla/parse_flags_from_env.h"
 #include "xla/tsl/platform/env.h"
@@ -159,6 +161,48 @@ TEST(DebugOptions, AllFieldsHavePresence) {
   EXPECT_THAT(fields_missing_presence, IsEmpty())
       << "All scalar fields in DebugOptions must have presence defined by "
          "being labeled `optional`.";
+}
+
+// Fields numbered at or above this must set `is_used_at_runtime` explicitly.
+// Fixed; never bump.
+constexpr int kFirstFieldRequiringAnnotation = 555;
+
+TEST(DebugOptions, NewFieldsDeclareRuntimeUse) {
+  std::vector<std::string> fields_missing_annotation;
+
+  const tsl::protobuf::Descriptor* debug_options = DebugOptions::descriptor();
+  for (int i = 0; i < debug_options->field_count(); ++i) {
+    const tsl::protobuf::FieldDescriptor* field = debug_options->field(i);
+    if (field->number() >= kFirstFieldRequiringAnnotation &&
+        !field->options()
+             .GetExtension(debug_options_field)
+             .has_is_used_at_runtime()) {
+      fields_missing_annotation.push_back(std::string(field->name()));
+    }
+  }
+
+  EXPECT_THAT(fields_missing_annotation, IsEmpty())
+      << "New DebugOptions fields must be annotated with "
+         "`[(debug_options_field).is_used_at_runtime = true|false]`. See "
+         "`DebugOptionsFieldOptions` in xla.proto for how to choose the "
+         "value.";
+}
+
+// Dump and test-only fields never affect a running executable.
+TEST(DebugOptions, DumpAndTestFieldsAreNotUsedAtRuntime) {
+  const tsl::protobuf::Descriptor* debug_options = DebugOptions::descriptor();
+  for (int i = 0; i < debug_options->field_count(); ++i) {
+    const tsl::protobuf::FieldDescriptor& field = *debug_options->field(i);
+    const absl::string_view name = field.name();
+    if (absl::StartsWith(name, "xla_dump_") ||
+        absl::StartsWith(name, "xla_gpu_dump_") ||
+        absl::StartsWith(name, "xla_test_")) {
+      EXPECT_FALSE(field.options()
+                       .GetExtension(debug_options_field)
+                       .is_used_at_runtime())
+          << name;
+    }
+  }
 }
 
 TEST(DebugOptions, EnableNcclSymmetricBuffersForCollectives) {

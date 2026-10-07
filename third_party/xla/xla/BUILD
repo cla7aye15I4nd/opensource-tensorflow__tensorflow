@@ -81,6 +81,7 @@ tf_proto_library(
         "//xla/backends/autotuner:backends_proto",
         "//xla/service:hlo_proto",
         "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:descriptor_proto",
     ],
 )
 
@@ -1391,6 +1392,8 @@ xla_cc_test(
         "//xla/tsl/platform:test_main",
         "//xla/tsl/util:command_line_flags",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
         "@tsl//tsl/platform:protobuf",
